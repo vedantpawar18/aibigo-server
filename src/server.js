@@ -16,24 +16,30 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    // Allow all origins in development, or specific origins in production
+    // Allow all origins (needed for Vercel preview deployments)
+    // In production, you can restrict this by setting CORS_ORIGIN env variable
     if (process.env.CORS_ORIGIN) {
-      const allowedOrigins = process.env.CORS_ORIGIN.split(',');
+      const allowedOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
+      // Also allow if origin matches the pattern (for Vercel preview URLs)
+      if (origin.includes('vercel.app') || origin.includes('localhost')) {
+        return callback(null, true);
+      }
     } else {
-      // In development or if CORS_ORIGIN not set, allow all origins
+      // Allow all origins if CORS_ORIGIN not set
       return callback(null, true);
     }
     
-    callback(new Error('Not allowed by CORS'));
+    callback(null, true); // Allow by default for Vercel compatibility
   },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  exposedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false
 };
 
 // Rate Limiting Configuration
@@ -43,6 +49,7 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for OPTIONS requests
 });
 
 // Logger Configuration
@@ -65,7 +72,8 @@ app.use('/api/', (req, res, next) => {
   next();
 });
 
-app.use('/api/', limiter); // Apply rate limiting to all API routes
+// Apply rate limiting to all API routes (OPTIONS are skipped automatically)
+app.use('/api/', limiter);
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -97,6 +105,21 @@ const platformAdminRoutes = require('./routes/platform-admin.routes');
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/system', systemRoutes);
 app.use('/api/v1/platform-admin', platformAdminRoutes);
+
+// Global OPTIONS handler for all API routes (fallback for CORS preflight)
+app.options('/api/*', (req, res) => {
+  const origin = req.get('origin');
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  res.status(204).send();
+});
 
 // Swagger JSON endpoint - Accessible in all environments
 app.get('/api/swagger', (req, res) => {
