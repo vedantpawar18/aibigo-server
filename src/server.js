@@ -37,13 +37,28 @@ const loggerFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
 // Trust proxy (for Vercel/Railway behind reverse proxy)
 app.set('trust proxy', true);
 
+// Handle OPTIONS requests FIRST (before any other middleware)
+app.options('*', (req, res) => {
+  const origin = req.get('origin');
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.status(204).send();
+});
+
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(loggerFormat));
 
-// CORS middleware for all API routes (explicit headers)
+// CORS middleware for all API routes (explicit headers for all requests)
 app.use('/api/', (req, res, next) => {
   const origin = req.get('origin');
   if (origin) {
@@ -55,12 +70,6 @@ app.use('/api/', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(204).send();
-  }
-  
   next();
 });
 
@@ -202,4 +211,10 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Export for Vercel serverless functions
+module.exports = app;
+
+// Start server only if not in Vercel environment
+if (process.env.VERCEL !== '1') {
+  startServer();
+}
