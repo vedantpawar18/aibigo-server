@@ -13,7 +13,10 @@ const PORT = process.env.PORT || 3000;
 const corsOptions = {
   origin: process.env.CORS_ORIGIN || '*',
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Type', 'Authorization']
 };
 
 // Rate Limiting Configuration
@@ -91,6 +94,10 @@ app.get('/api-docs.json', (req, res) => {
 
 // Swagger UI HTML (CDN-based for Vercel/serverless compatibility)
 app.get('/api-docs', (req, res) => {
+  // Get the base URL from the request
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const swaggerJsonUrl = `${baseUrl}/api/swagger`;
+  
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -108,11 +115,152 @@ app.get('/api-docs', (req, res) => {
       box-sizing: inherit;
     }
     body {
-      margin:0;
-      background: #fafafa;
+      margin: 0;
+      background: #1a1a1a;
+      color: #ffffff;
     }
     .swagger-ui .topbar {
       display: none;
+    }
+    /* Dark Theme Styles */
+    .swagger-ui {
+      color: #ffffff;
+    }
+    .swagger-ui .info {
+      background: #2d2d2d;
+      color: #ffffff;
+    }
+    .swagger-ui .info .title {
+      color: #ffffff;
+    }
+    .swagger-ui .scheme-container {
+      background: #2d2d2d;
+    }
+    .swagger-ui .opblock.opblock-post {
+      background: #2d2d2d;
+      border-color: #49cc90;
+    }
+    .swagger-ui .opblock.opblock-get {
+      background: #2d2d2d;
+      border-color: #61affe;
+    }
+    .swagger-ui .opblock.opblock-put {
+      background: #2d2d2d;
+      border-color: #fca130;
+    }
+    .swagger-ui .opblock.opblock-delete {
+      background: #2d2d2d;
+      border-color: #f93e3e;
+    }
+    .swagger-ui .opblock.opblock-patch {
+      background: #2d2d2d;
+      border-color: #50e3c2;
+    }
+    .swagger-ui .opblock .opblock-summary {
+      background: #1a1a1a;
+    }
+    .swagger-ui .opblock .opblock-summary-method {
+      color: #ffffff;
+    }
+    .swagger-ui .opblock-body {
+      background: #1a1a1a;
+    }
+    .swagger-ui .opblock-description-wrapper,
+    .swagger-ui .opblock-external-docs-wrapper,
+    .swagger-ui .opblock-title {
+      background: #1a1a1a;
+      color: #ffffff;
+    }
+    .swagger-ui .parameter__name,
+    .swagger-ui .parameter__type,
+    .swagger-ui .parameter__in {
+      color: #ffffff;
+    }
+    .swagger-ui .btn.execute {
+      background: #49cc90;
+      color: #ffffff;
+    }
+    .swagger-ui .btn.cancel {
+      background: #f93e3e;
+      color: #ffffff;
+    }
+    .swagger-ui input[type=text],
+    .swagger-ui input[type=password],
+    .swagger-ui input[type=search],
+    .swagger-ui input[type=email],
+    .swagger-ui textarea,
+    .swagger-ui select {
+      background: #2d2d2d;
+      color: #ffffff;
+      border-color: #555555;
+    }
+    .swagger-ui .response-col_status {
+      color: #ffffff;
+    }
+    .swagger-ui .response-col_links {
+      color: #ffffff;
+    }
+    .swagger-ui .model-box {
+      background: #2d2d2d;
+      color: #ffffff;
+    }
+    .swagger-ui .model-title {
+      color: #ffffff;
+    }
+    .swagger-ui .prop-name {
+      color: #ffffff;
+    }
+    .swagger-ui .prop-type {
+      color: #61affe;
+    }
+    .swagger-ui table thead tr td,
+    .swagger-ui table thead tr th {
+      background: #2d2d2d;
+      color: #ffffff;
+    }
+    .swagger-ui table tbody tr td {
+      background: #1a1a1a;
+      color: #ffffff;
+    }
+    .swagger-ui .response-content-type {
+      color: #ffffff;
+    }
+    .swagger-ui .highlight-code {
+      background: #1a1a1a;
+    }
+    .swagger-ui .microlight {
+      background: #1a1a1a;
+      color: #ffffff;
+    }
+    .swagger-ui .auth-btn-wrapper {
+      background: #2d2d2d;
+    }
+    .swagger-ui .auth-container {
+      background: #2d2d2d;
+    }
+    .swagger-ui .auth-wrapper {
+      background: #2d2d2d;
+    }
+    .swagger-ui .authorization__btn {
+      background: #49cc90;
+      color: #ffffff;
+    }
+    .swagger-ui .btn.authorize {
+      background: #49cc90;
+      color: #ffffff;
+    }
+    .swagger-ui .btn-done {
+      background: #49cc90;
+      color: #ffffff;
+    }
+    .swagger-ui .scheme-container {
+      background: #2d2d2d;
+    }
+    .swagger-ui .loading-container {
+      background: #1a1a1a;
+    }
+    .swagger-ui .loading::after {
+      border-color: #49cc90 transparent transparent transparent;
     }
   </style>
 </head>
@@ -123,7 +271,7 @@ app.get('/api-docs', (req, res) => {
   <script>
     window.onload = function() {
       const ui = SwaggerUIBundle({
-        url: '/api/swagger',
+        url: '${swaggerJsonUrl}',
         dom_id: '#swagger-ui',
         deepLinking: true,
         presets: [
