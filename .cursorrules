@@ -1,0 +1,46 @@
+# Cursor Rules — Focused / Edi Backend
+
+## Tech Stack
+- Node.js (18+)
+- Express.js
+- MongoDB (Mongoose)
+- JWT Authentication
+- bcrypt for password hashing
+- Docker & Docker Compose
+
+## Architecture Rules
+- REST APIs only (no GraphQL)
+- Role-based access control (RBAC)
+- Platform-Admin APIs must be isolated under `/api/platform-admin`
+- No direct DB access from routes (service layer mandatory)
+- Controllers must be thin
+- Business rules must live in services
+
+## Roles
+- SUPER_ADMIN (Platform Admin)
+- OPERATIONS_ADMIN
+- FACULTY
+- STUDENT
+
+## Security Rules
+- All write APIs require authentication
+- SUPER_ADMIN actions must be audit logged
+- Passwords must never be returned in responses
+- JWT expiry: 24h (access), refresh-token optional
+
+## Database Rules
+- MongoDB via Mongoose
+- No hard dependency on MongoDB-specific operators in services
+- Schema design must support DB replacement
+
+## AI Guardrails
+- No AI prompts or OpenAI logic in Platform-Admin services
+- AI is a downstream consumer of syllabus metadata only
+
+## Naming Conventions
+- kebab-case for routes
+- camelCase for variables
+- PascalCase for models
+
+## Versioning
+- APIs must be versioned: `/api/v1/...`
