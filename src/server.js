@@ -10,16 +10,8 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS Configuration - Allow all origins for Vercel compatibility
-const corsOptions = {
-  origin: true, // Allow all origins
-  credentials: true,
-  optionsSuccessStatus: 200,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Type', 'Authorization'],
-  preflightContinue: false
-};
+// CORS Configuration - Simple configuration like Archive project
+// Use default CORS which allows all origins (needed for Vercel preview URLs)
 
 // Rate Limiting Configuration
 const limiter = rateLimit({
@@ -37,41 +29,11 @@ const loggerFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
 // Trust proxy (for Vercel/Railway behind reverse proxy)
 app.set('trust proxy', true);
 
-// Handle OPTIONS requests FIRST (before any other middleware)
-app.options('*', (req, res) => {
-  const origin = req.get('origin');
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Max-Age', '86400');
-  res.status(204).send();
-});
-
-// Middleware
-app.use(cors(corsOptions));
+// Middleware - Simple CORS like Archive project
+app.use(cors()); // Default CORS allows all origins
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(loggerFormat));
-
-// CORS middleware for all API routes (explicit headers for all requests)
-app.use('/api/', (req, res, next) => {
-  const origin = req.get('origin');
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Max-Age', '86400');
-  next();
-});
 
 // Disable caching for API responses (for development)
 app.use('/api/', (req, res, next) => {
