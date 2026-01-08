@@ -32,6 +32,9 @@ const limiter = rateLimit({
 // Logger Configuration
 const loggerFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
 
+// Trust proxy (for Vercel/Railway behind reverse proxy)
+app.set('trust proxy', true);
+
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json());

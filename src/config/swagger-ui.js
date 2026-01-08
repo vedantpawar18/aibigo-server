@@ -175,7 +175,11 @@ function getSwaggerUiHtml() {
   <script>
     window.onload = function() {
       // Build the Swagger JSON URL on the client to avoid mixed-content issues
-      const swaggerJsonUrl = window.location.origin + '/api/swagger';
+      // Force HTTPS if page is loaded over HTTPS
+      let swaggerJsonUrl = window.location.origin + '/api/swagger';
+      if (window.location.protocol === 'https:') {
+        swaggerJsonUrl = swaggerJsonUrl.replace('http://', 'https://');
+      }
 
       const ui = SwaggerUIBundle({
         url: swaggerJsonUrl,
@@ -190,7 +194,15 @@ function getSwaggerUiHtml() {
         ],
         layout: "StandaloneLayout",
         persistAuthorization: true,
-        displayRequestDuration: true
+        displayRequestDuration: true,
+        // Override server URLs to use current origin (prevents mixed content)
+        requestInterceptor: (request) => {
+          // Ensure all requests use HTTPS if page is HTTPS
+          if (window.location.protocol === 'https:' && request.url.startsWith('http://')) {
+            request.url = request.url.replace('http://', 'https://');
+          }
+          return request;
+        }
       });
     };
   </script>
