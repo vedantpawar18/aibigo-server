@@ -10,30 +10,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS Configuration
+// CORS Configuration - Allow all origins for Vercel compatibility
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Allow all origins (needed for Vercel preview deployments)
-    // In production, you can restrict this by setting CORS_ORIGIN env variable
-    if (process.env.CORS_ORIGIN) {
-      const allowedOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      // Also allow if origin matches the pattern (for Vercel preview URLs)
-      if (origin.includes('vercel.app') || origin.includes('localhost')) {
-        return callback(null, true);
-      }
-    } else {
-      // Allow all origins if CORS_ORIGIN not set
-      return callback(null, true);
-    }
-    
-    callback(null, true); // Allow by default for Vercel compatibility
-  },
+  origin: true, // Allow all origins
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -63,6 +42,27 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(loggerFormat));
+
+// CORS middleware for all API routes (explicit headers)
+app.use('/api/', (req, res, next) => {
+  const origin = req.get('origin');
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send();
+  }
+  
+  next();
+});
 
 // Disable caching for API responses (for development)
 app.use('/api/', (req, res, next) => {
@@ -105,21 +105,6 @@ const platformAdminRoutes = require('./routes/platform-admin.routes');
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/system', systemRoutes);
 app.use('/api/v1/platform-admin', platformAdminRoutes);
-
-// Global OPTIONS handler for all API routes (fallback for CORS preflight)
-app.options('/api/*', (req, res) => {
-  const origin = req.get('origin');
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-  res.status(204).send();
-});
 
 // Swagger JSON endpoint - Accessible in all environments
 app.get('/api/swagger', (req, res) => {
