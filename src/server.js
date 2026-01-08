@@ -163,9 +163,11 @@ const startServer = async () => {
     
     // Start Express server
     app.listen(PORT, () => {
-      const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
-        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-        : `http://localhost:${PORT}`;
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.RAILWAY_PUBLIC_DOMAIN 
+          ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+          : `http://localhost:${PORT}`;
       
       console.log(`Server is running on ${baseUrl}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);

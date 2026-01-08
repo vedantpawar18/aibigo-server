@@ -2,6 +2,14 @@ const swaggerJsdoc = require('swagger-jsdoc');
 
 // Get server URL dynamically based on environment
 const getServerUrl = () => {
+  // Vercel provides VERCEL_URL (includes protocol)
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  // Check for explicit API_BASE_URL environment variable
+  if (process.env.API_BASE_URL) {
+    return process.env.API_BASE_URL;
+  }
   // Railway provides RAILWAY_PUBLIC_DOMAIN or RAILWAY_STATIC_URL
   if (process.env.RAILWAY_PUBLIC_DOMAIN) {
     return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
@@ -18,8 +26,8 @@ const getServerUrl = () => {
   if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
     return 'http://localhost:3000';
   }
-  // For production (custom domain)
-  return process.env.API_BASE_URL || 'https://api.aibigo.com';
+  // For production (default to Vercel)
+  return 'https://aibigo-server.vercel.app';
 };
 
 const serverUrl = getServerUrl();
@@ -27,7 +35,9 @@ const serverUrl = getServerUrl();
 // Log server URL for debugging (only in development)
 if (process.env.NODE_ENV !== 'production') {
   console.log('Swagger Server URL:', serverUrl);
-  console.log('Railway Environment Variables:', {
+  console.log('Environment Variables:', {
+    VERCEL_URL: process.env.VERCEL_URL,
+    API_BASE_URL: process.env.API_BASE_URL,
     RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN,
     RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
     RAILWAY_STATIC_URL: process.env.RAILWAY_STATIC_URL,
