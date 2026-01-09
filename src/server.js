@@ -72,6 +72,21 @@ const authRoutes = require('./routes/auth.routes');
 const systemRoutes = require('./routes/system.routes');
 const platformAdminRoutes = require('./routes/platform-admin.routes');
 
+// Handle OPTIONS for all API routes (CORS preflight)
+app.options('/api/v1/*', (req, res) => {
+  const origin = req.get('origin');
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.status(204).send();
+});
+
 // Register routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/system', systemRoutes);
@@ -156,11 +171,7 @@ const startServer = async () => {
     
     // Start Express server
     app.listen(PORT, () => {
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.RAILWAY_PUBLIC_DOMAIN 
-          ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-          : `http://localhost:${PORT}`;
+      const baseUrl = process.env.API_BASE_URL || `http://localhost:${PORT}`;
       
       console.log(`Server is running on ${baseUrl}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);

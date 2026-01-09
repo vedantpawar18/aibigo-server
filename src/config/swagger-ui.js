@@ -51,7 +51,17 @@ function getSwaggerUiHtml() {
         layout: "StandaloneLayout",
         persistAuthorization: true,
         displayRequestDuration: true,
-        tryItOutEnabled: true
+        tryItOutEnabled: true,
+        // Override server URLs to use current origin (fixes CORS issues)
+        requestInterceptor: (request) => {
+          // Replace any server URL with current origin
+          if (request.url && !request.url.startsWith(window.location.origin)) {
+            // If URL is absolute but not from current origin, replace with current origin
+            const urlObj = new URL(request.url, window.location.origin);
+            request.url = window.location.origin + urlObj.pathname + urlObj.search;
+          }
+          return request;
+        }
       });
     };
   </script>
