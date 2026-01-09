@@ -3,10 +3,13 @@ const router = express.Router();
 const platformAdminController = require('../controllers/platform-admin.controller');
 const { authenticateJWT, authorizeRoles } = require('../middleware/auth.middleware');
 const { validateCreateAdminUser } = require('../middleware/validation.middleware');
+const auditLogMiddleware = require('../middleware/auditLog.middleware');
 
 // Apply authentication and authorization to all platform-admin routes
 router.use(authenticateJWT);
 router.use(authorizeRoles('PLATFORM_ADMIN'));
+// Apply audit logging to all routes
+router.use(auditLogMiddleware);
 
 // Dashboard
 router.get('/dashboard/overview', platformAdminController.getDashboardOverview);

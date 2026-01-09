@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 /**
  * Create admin user
  */
-const createAdminUser = async (name, email, role) => {
+const createAdminUser = async (name, email, role, createdBy = null) => {
   // Validate role
   if (!['OPERATIONS_ADMIN', 'FACULTY'].includes(role)) {
     const error = new Error('Invalid role. Must be OPERATIONS_ADMIN or FACULTY');
@@ -37,7 +37,14 @@ const createAdminUser = async (name, email, role) => {
   });
 
   // TODO: Send password via email
-  console.log(`Admin user created: ${email}, Temporary password: ${randomPassword}`);
+  // Log to Winston (will be written to files)
+  const logger = require('../config/logger');
+  logger.info('Admin user created', {
+    email,
+    role: role,
+    temporaryPassword: randomPassword,
+    createdBy: createdBy || 'system'
+  });
 
   return {
     id: user._id,

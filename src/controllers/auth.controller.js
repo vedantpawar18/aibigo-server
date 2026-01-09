@@ -1,4 +1,5 @@
 const authService = require('../services/auth.service');
+const { logAuditEvent } = require('../utils/auditLogger.util');
 
 /**
  * Register a new student
@@ -30,8 +31,52 @@ const login = async (req, res) => {
     const { email, password } = req.body;
     const result = await authService.login(email, password);
     
+    // Log successful login
+    if (result.user && result.user._id) {
+      await logAuditEvent({
+        userId: result.user._id,
+        action: 'LOGIN_SUCCESS',
+        ip: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+        userAgent: req.headers['user-agent'],
+        metadata: {
+          email,
+          role: result.user.role
+        }
+      }).catch(err => {
+        const logger = require('../config/logger');
+        logger.error('Failed to log login success', { error: err.message, stack: err.stack });
+      });
+    }
+    
     res.status(200).json(result);
   } catch (error) {
+    // Try to log failed login attempt
+    const { email } = req.body;
+    if (email) {
+      const UserRepository = require('../repositories/User.repository');
+      UserRepository.findOne({ email })
+        .then(user => {
+          if (user) {
+            logAuditEvent({
+              userId: user._id,
+              action: 'LOGIN_FAILURE',
+              ip: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+              userAgent: req.headers['user-agent'],
+              metadata: {
+                email,
+                reason: error.message
+              }
+            }).catch(err => {
+              const logger = require('../config/logger');
+              logger.error('Failed to log login failure', { error: err.message, stack: err.stack });
+            });
+          }
+        })
+        .catch(() => {
+          // User not found, skip logging
+        });
+    }
+    
     res.status(error.statusCode || 401).json({
       error: error.message,
       message: error.message

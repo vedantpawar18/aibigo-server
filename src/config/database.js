@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('./logger');
 
 /**
  * Connect to MongoDB database
@@ -17,27 +18,41 @@ const connectDB = async () => {
     const conn = await mongoose.connect(mongoURI);
 
     const connectionType = mongoURI.includes('mongodb+srv://') ? 'MongoDB Atlas' : 'MongoDB';
-    console.log(`${connectionType} Connected: ${conn.connection.host}`);
+    logger.info(`${connectionType} Connected`, {
+      host: conn.connection.host,
+      database: conn.connection.name,
+    });
     
     // Handle connection events
     mongoose.connection.on('error', (err) => {
-      console.error('MongoDB connection error:', err);
+      logger.error('MongoDB connection error', {
+        error: err.message,
+        stack: err.stack,
+      });
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.log('MongoDB disconnected');
+      logger.warn('MongoDB disconnected');
+    });
+
+    mongoose.connection.on('reconnected', () => {
+      logger.info('MongoDB reconnected');
     });
 
     // Graceful shutdown
     process.on('SIGINT', async () => {
+      logger.info('Shutting down gracefully...');
       await mongoose.connection.close();
-      console.log('MongoDB connection closed through app termination');
+      logger.info('MongoDB connection closed through app termination');
       process.exit(0);
     });
 
     return conn;
   } catch (error) {
-    console.error('Error connecting to MongoDB:', error.message);
+    logger.error('Error connecting to MongoDB', {
+      error: error.message,
+      stack: error.stack,
+    });
     process.exit(1);
   }
 };

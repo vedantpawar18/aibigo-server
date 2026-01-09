@@ -205,6 +205,19 @@ class BaseRepository {
   }
 
   /**
+   * Aggregate documents
+   * @param {Array} pipeline - Aggregation pipeline
+   * @returns {Promise<Array>} Aggregated results
+   */
+  async aggregate(pipeline) {
+    try {
+      return await this.model.aggregate(pipeline);
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * Handle database errors
    * @param {Error} error - Error object
    * @returns {Error} Formatted error

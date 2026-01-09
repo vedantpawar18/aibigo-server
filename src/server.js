@@ -5,6 +5,9 @@ const morgan = require('morgan');
 const swaggerSpec = require('./config/swagger');
 const { getSwaggerUiHtml } = require('./config/swagger-ui');
 const { connectDB } = require('./config/database');
+const logger = require('./config/logger');
+const requestLogger = require('./middleware/requestLogger.middleware');
+const errorLogger = require('./middleware/errorLogger.middleware');
 require('dotenv').config();
 
 const app = express();
@@ -23,9 +26,6 @@ const limiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for OPTIONS requests
 });
 
-// Logger Configuration
-const loggerFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
-
 // Trust proxy (for Vercel/Railway behind reverse proxy)
 app.set('trust proxy', true);
 
@@ -33,7 +33,12 @@ app.set('trust proxy', true);
 app.use(cors()); // Default CORS allows all origins
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan(loggerFormat));
+
+// Request logging middleware (before morgan for request ID)
+app.use(requestLogger);
+
+// Morgan HTTP request logging (integrated with Winston)
+app.use(morgan('combined', { stream: logger.stream }));
 
 // Disable caching for API responses (for development)
 app.use('/api/', (req, res, next) => {
@@ -71,6 +76,7 @@ app.get('/api/v1/health', (req, res) => {
 const authRoutes = require('./routes/auth.routes');
 const systemRoutes = require('./routes/system.routes');
 const platformAdminRoutes = require('./routes/platform-admin.routes');
+const logRoutes = require('./routes/log.routes');
 
 // Handle OPTIONS for all API routes (CORS preflight)
 app.options('/api/v1/*', (req, res) => {
@@ -91,6 +97,7 @@ app.options('/api/v1/*', (req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/system', systemRoutes);
 app.use('/api/v1/platform-admin', platformAdminRoutes);
+app.use('/api/v1/platform-admin/system/logs', logRoutes);
 
 // Swagger JSON endpoint - Accessible in all environments
 app.get('/api/swagger', (req, res) => {
@@ -163,23 +170,51 @@ app.get('/', (req, res) => {
   });
 });
 
+// Error handling middleware (must be after all routes)
+app.use(errorLogger);
+
+// Global error handler
+app.use((err, req, res, next) => {
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
+
+  res.status(statusCode).json({
+    error: message,
+    message: process.env.NODE_ENV === 'development' ? err.message : message,
+    statusCode,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
+});
+
 // Start server
 const startServer = async () => {
   try {
+    logger.info('Starting server...', {
+      port: PORT,
+      environment: process.env.NODE_ENV || 'development',
+    });
+
     // Connect to database
     await connectDB();
     
     // Start Express server
     app.listen(PORT, () => {
-      const baseUrl = process.env.API_BASE_URL || `http://localhost:${PORT}`;
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.API_BASE_URL || `http://localhost:${PORT}`;
       
-      console.log(`Server is running on ${baseUrl}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`Swagger Documentation: ${baseUrl}/api-docs`);
-      console.log(`Swagger JSON: ${baseUrl}/api-docs.json`);
+      logger.info('Server started successfully', {
+        baseUrl,
+        port: PORT,
+        environment: process.env.NODE_ENV || 'development',
+        swaggerDocs: `${baseUrl}/api-docs`,
+      });
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error('Failed to start server', {
+      error: error.message,
+      stack: error.stack,
+    });
     process.exit(1);
   }
 };

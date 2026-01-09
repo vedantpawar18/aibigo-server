@@ -6,7 +6,8 @@ const systemService = require('../services/system.service');
 const createAdminUser = async (req, res) => {
   try {
     const { name, email, role } = req.body;
-    const result = await systemService.createAdminUser(name, email, role);
+    const createdBy = req.user?._id || req.user?.id || null;
+    const result = await systemService.createAdminUser(name, email, role, createdBy);
     
     res.status(201).json({
       message: 'Admin user created successfully',

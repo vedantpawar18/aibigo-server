@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const UserRepository = require('../repositories/User.repository');
 const { generateAccessToken, generateRefreshToken, getPermissionsForRole } = require('../utils/jwt.util');
+const logger = require('../config/logger');
 
 /**
  * Register a new student
@@ -137,10 +138,27 @@ const forgotPassword = async (email) => {
   const user = await UserRepository.findOne({ email });
   
   // Always return success message (security best practice)
-  // In production, send email with reset token
   if (user) {
-    // TODO: Generate reset token and send email
-    console.log(`Password reset requested for: ${email}`);
+    // Generate reset token (using crypto for secure random token)
+    const crypto = require('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+    
+    // Save reset token to user
+    await UserRepository.updateById(user._id, {
+      resetPasswordToken: resetToken,
+      resetPasswordExpires: resetTokenExpiry
+    });
+    
+    // In production, send email with reset token
+    // For now, log it (in production, use email service)
+    // Log to Winston (will be written to files)
+    logger.info('Password reset token generated', {
+      email,
+      resetToken,
+      resetLink: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`,
+      expiresAt: resetTokenExpiry
+    });
   }
   
   // Return Success schema as per contract
@@ -161,11 +179,42 @@ const resetPassword = async (token, newPassword) => {
     throw error;
   }
 
-  // TODO: Validate token and reset password
-  // For now, throw not implemented error
-  const error = new Error('Password reset not implemented yet');
-  error.statusCode = 501;
-  throw error;
+  if (!token) {
+    const error = new Error('Reset token is required');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Find user by reset token
+  const user = await UserRepository.findOne({
+    resetPasswordToken: token,
+    resetPasswordExpires: { $gt: new Date() } // Token not expired
+  });
+
+  if (!user) {
+    const error = new Error('Invalid or expired reset token');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Hash new password
+  const saltRounds = 10;
+  const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+  // Update user password and clear reset token
+  await UserRepository.updateById(user._id, {
+    passwordHash,
+    resetPasswordToken: undefined,
+    resetPasswordExpires: undefined,
+    failedLoginAttempts: 0, // Reset failed attempts
+    status: 'ACTIVE' // Ensure account is active
+  });
+
+  // Return Success schema as per contract
+  return {
+    message: 'Password reset successfully',
+    data: {}
+  };
 };
 
 module.exports = {

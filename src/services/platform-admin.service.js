@@ -11,33 +11,98 @@ const AssessmentRepository = require('../repositories/Assessment.repository');
 const InstituteRepository = require('../repositories/Institute.repository');
 const SubscriptionPlanRepository = require('../repositories/SubscriptionPlan.repository');
 const UserRepository = require('../repositories/User.repository');
+const PaymentRepository = require('../repositories/Payment.repository');
+const CourseRepository = require('../repositories/Course.repository');
+const PlatformSettingRepository = require('../repositories/PlatformSetting.repository');
+const AnalyticsTriggerRepository = require('../repositories/AnalyticsTrigger.repository');
+const AuditLogRepository = require('../repositories/AuditLog.repository');
 
 /**
- * Get dashboard overview
+ * Get dashboard overview - Optimized with aggregation for cost efficiency
  */
 const getDashboardOverview = async () => {
-  const institutes = await InstituteRepository.find();
-  const activeInstitutes = institutes.filter(i => i.isActive);
-  
-  const opportunities = await OpportunityRepository.find({ isActive: true });
-  const assessments = await AssessmentRepository.find({ isActive: true });
-  const students = await UserRepository.find({ role: 'STUDENT' });
-  
-  // Calculate subscriptions expiring (within next 30 days)
-  const thirtyDaysFromNow = new Date();
-  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-  
+  // Use aggregation pipelines to get all metrics in fewer queries
+  const [instituteStats, studentCount, opportunityCount, assessmentCount, paymentStats] = await Promise.all([
+    // Institute statistics using aggregation
+    InstituteRepository.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          active: {
+            $sum: { $cond: [{ $eq: ['$isActive', true] }, 1, 0] }
+          },
+          inactive: {
+            $sum: { $cond: [{ $eq: ['$isActive', false] }, 1, 0] }
+          }
+        }
+      }
+    ]),
+    // Student count
+    UserRepository.count({ role: 'STUDENT' }),
+    // Active opportunities count
+    OpportunityRepository.count({ isActive: true }),
+    // Active assessments count
+    AssessmentRepository.count({ isActive: true }),
+    // Payment statistics for revenue and expiring subscriptions
+    PaymentRepository.aggregate([
+      {
+        $match: {
+          status: 'PAID',
+          startDate: { $lte: new Date() },
+          endDate: { $gte: new Date() }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          monthlyRevenue: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ['$startDate', new Date(new Date().getFullYear(), new Date().getMonth(), 1)] },
+                    { $lte: ['$startDate', new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)] }
+                  ]
+                },
+                '$amount',
+                0
+              ]
+            }
+          },
+          subscriptionsExpiring: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $lte: ['$endDate', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)] },
+                    { $gte: ['$endDate', new Date()] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ])
+  ]);
+
+  const instituteData = instituteStats[0] || { total: 0, active: 0, inactive: 0 };
+  const paymentData = paymentStats[0] || { monthlyRevenue: 0, subscriptionsExpiring: 0 };
+
   return {
     institutes: {
-      total: institutes.length,
-      active: activeInstitutes.length,
-      inactive: institutes.length - activeInstitutes.length
+      total: instituteData.total,
+      active: instituteData.active,
+      inactive: instituteData.inactive
     },
-    subscriptionsExpiring: 0, // TODO: Implement when subscription expiry tracking is added
-    studentsCount: students.length,
-    activeOpportunities: opportunities.length,
-    activeAssessments: assessments.length,
-    monthlyRevenue: 0 // TODO: Implement revenue calculation
+    subscriptionsExpiring: paymentData.subscriptionsExpiring || 0,
+    studentsCount: studentCount || 0,
+    activeOpportunities: opportunityCount || 0,
+    activeAssessments: assessmentCount || 0,
+    monthlyRevenue: paymentData.monthlyRevenue || 0
   };
 };
 
@@ -124,9 +189,13 @@ const listPrograms = async (universityId, isActive) => {
     query.isActive = isActive === 'true' || isActive === true;
   }
   
+  // Use nested population for better data relationships
   const programs = await ProgramRepository.find(query, {
     sort: { name: 1 },
-    populate: 'universityId'
+    populate: {
+      path: 'universityId',
+      select: 'name code state country'
+    }
   });
   
   return programs;
@@ -189,9 +258,23 @@ const listSubjects = async (programId, universityId, academicYear) => {
     query.academicYear = parseInt(academicYear);
   }
   
+  // Optimize with nested population - only select needed fields
   const subjects = await SubjectRepository.find(query, {
     sort: { academicYear: 1, subjectName: 1 },
-    populate: ['programId', 'universityId']
+    populate: [
+      {
+        path: 'programId',
+        select: 'name code durationYears universityId',
+        populate: {
+          path: 'universityId',
+          select: 'name code'
+        }
+      },
+      {
+        path: 'universityId',
+        select: 'name code state'
+      }
+    ]
   });
   
   return subjects;
@@ -270,9 +353,35 @@ const listChapters = async (subjectId, programId, universityId) => {
     query.universityId = universityId;
   }
   
+  // Optimize with nested population for complete relational data
   const chapters = await ChapterRepository.find(query, {
     sort: { chapterNumber: 1 },
-    populate: ['subjectId', 'programId', 'universityId']
+    populate: [
+      {
+        path: 'subjectId',
+        select: 'subjectName subjectCode academicYear',
+        populate: {
+          path: 'programId',
+          select: 'name code',
+          populate: {
+            path: 'universityId',
+            select: 'name code'
+          }
+        }
+      },
+      {
+        path: 'programId',
+        select: 'name code universityId',
+        populate: {
+          path: 'universityId',
+          select: 'name code'
+        }
+      },
+      {
+        path: 'universityId',
+        select: 'name code state'
+      }
+    ]
   });
   
   return chapters;
@@ -443,9 +552,19 @@ const listInstitutes = async (universityId, isActive) => {
     query.isActive = isActive === 'true' || isActive === true;
   }
   
+  // Optimize with nested population for complete relational data
   const institutes = await InstituteRepository.find(query, {
     sort: { name: 1 },
-    populate: ['universityId', 'subscriptionPlanId']
+    populate: [
+      {
+        path: 'universityId',
+        select: 'name code state country'
+      },
+      {
+        path: 'subscriptionPlanId',
+        select: 'name features limits price'
+      }
+    ]
   });
   
   return institutes;
@@ -495,10 +614,10 @@ const listSubscriptionPlans = async (isActive) => {
 /**
  * Create admin user
  */
-const createAdminUser = async (name, email, role) => {
+const createAdminUser = async (name, email, role, createdBy = null) => {
   // Reuse system service
   const systemService = require('./system.service');
-  return await systemService.createAdminUser(name, email, role);
+  return await systemService.createAdminUser(name, email, role, createdBy);
 };
 
 /**
@@ -522,19 +641,15 @@ const listAdminUsers = async (role) => {
 };
 
 /**
- * Get audit logs
+ * Get audit logs - Optimized with pagination and filters
  */
 const getAuditLogs = async (filters) => {
-  // TODO: Implement audit log retrieval
-  return {
-    logs: [],
-    pagination: {
-      page: filters.page || 1,
-      limit: filters.limit || 50,
-      total: 0,
-      pages: 0
-    }
-  };
+  const result = await AuditLogRepository.findWithPagination(filters, {
+    page: filters.page || 1,
+    limit: filters.limit || 50
+  });
+  
+  return result;
 };
 
 /**
@@ -626,9 +741,29 @@ const listPayments = async (instituteId, status) => {
     query.status = status;
   }
   
+  // Optimize with nested population for complete relational data
   const payments = await PaymentRepository.find(query, {
     sort: { createdAt: -1 },
-    populate: ['instituteId', 'subscriptionPlanId']
+    populate: [
+      {
+        path: 'instituteId',
+        select: 'name state universityId subscriptionPlanId',
+        populate: [
+          {
+            path: 'universityId',
+            select: 'name code'
+          },
+          {
+            path: 'subscriptionPlanId',
+            select: 'name price'
+          }
+        ]
+      },
+      {
+        path: 'subscriptionPlanId',
+        select: 'name features limits price'
+      }
+    ]
   });
   
   return payments;

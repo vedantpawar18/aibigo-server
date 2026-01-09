@@ -26,7 +26,7 @@ const subscriptionPlanSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    enum: ['BASIC', 'PREMIUM', 'ENTERPRISE'],
+    trim: true,
     unique: true
   },
   features: {

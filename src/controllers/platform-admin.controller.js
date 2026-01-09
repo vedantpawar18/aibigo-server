@@ -1,4 +1,5 @@
 const platformAdminService = require('../services/platform-admin.service');
+const { logDataOperation } = require('../utils/auditLogger.util');
 
 // Dashboard
 const getDashboardOverview = async (req, res) => {
@@ -19,6 +20,8 @@ const getDashboardOverview = async (req, res) => {
 const createUniversity = async (req, res) => {
   try {
     const result = await platformAdminService.createUniversity(req.body);
+    // Log the data creation
+    await logDataOperation(req, 'DATA_CREATE', 'University', result._id, { name: result.name });
     res.status(201).json(result);
   } catch (error) {
     res.status(error.statusCode || 400).json({
@@ -265,7 +268,8 @@ const listSubscriptionPlans = async (req, res) => {
 const createAdminUser = async (req, res) => {
   try {
     const { name, email, role } = req.body;
-    const result = await platformAdminService.createAdminUser(name, email, role);
+    const createdBy = req.user?._id || req.user?.id || null;
+    const result = await platformAdminService.createAdminUser(name, email, role, createdBy);
     res.status(201).json({
       message: 'Admin user created successfully',
       data: result

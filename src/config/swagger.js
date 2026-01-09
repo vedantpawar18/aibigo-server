@@ -627,16 +627,51 @@ const swaggerDefinition = {
               type: 'string',
             },
             userId: {
-              type: 'string',
+              oneOf: [
+                {
+                  type: 'string',
+                  description: 'User ID as string',
+                },
+                {
+                  type: 'object',
+                  description: 'Populated user object',
+                  properties: {
+                    _id: {
+                      type: 'string',
+                    },
+                    email: {
+                      type: 'string',
+                    },
+                    role: {
+                      type: 'string',
+                    },
+                  },
+                },
+              ],
             },
             action: {
               type: 'string',
-              enum: ['LOGIN_SUCCESS', 'LOGIN_FAILURE', 'PASSWORD_RESET', 'ROLE_ASSIGNMENT', 'ADMIN_CREATION', 'ACCOUNT_SUSPENSION'],
+              enum: [
+                'LOGIN_SUCCESS',
+                'LOGIN_FAILURE',
+                'PASSWORD_RESET',
+                'ROLE_ASSIGNMENT',
+                'ADMIN_CREATION',
+                'ACCOUNT_SUSPENSION',
+                'DATA_CREATE',
+                'DATA_UPDATE',
+                'DATA_DELETE',
+                'API_ACCESS',
+              ],
               example: 'LOGIN_SUCCESS',
             },
             ip: {
               type: 'string',
               example: '192.168.1.1',
+            },
+            userAgent: {
+              type: 'string',
+              example: 'Mozilla/5.0...',
             },
             timestamp: {
               type: 'string',
@@ -644,6 +679,16 @@ const swaggerDefinition = {
             },
             metadata: {
               type: 'object',
+              description: 'Additional metadata about the action',
+              additionalProperties: true,
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time',
             },
           },
         },
@@ -2481,7 +2526,18 @@ const swaggerDefinition = {
               required: false,
               schema: {
                 type: 'string',
-                enum: ['LOGIN_SUCCESS', 'LOGIN_FAILURE', 'PASSWORD_RESET', 'ROLE_ASSIGNMENT', 'ADMIN_CREATION', 'ACCOUNT_SUSPENSION'],
+                enum: [
+                  'LOGIN_SUCCESS',
+                  'LOGIN_FAILURE',
+                  'PASSWORD_RESET',
+                  'ROLE_ASSIGNMENT',
+                  'ADMIN_CREATION',
+                  'ACCOUNT_SUSPENSION',
+                  'DATA_CREATE',
+                  'DATA_UPDATE',
+                  'DATA_DELETE',
+                  'API_ACCESS'
+                ],
               },
             },
             {
@@ -3079,6 +3135,278 @@ const swaggerDefinition = {
                 },
               },
             },
+          },
+        },
+      },
+      '/api/v1/platform-admin/system/logs/files': {
+        get: {
+          tags: ['Platform Admin'],
+          summary: 'Get list of log files',
+          description: 'Get list of all log files. Requires PLATFORM_ADMIN role.',
+          operationId: 'getLogFiles',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Log files retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      data: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            filename: { type: 'string' },
+                            size: { type: 'integer' },
+                            created: { type: 'string', format: 'date-time' },
+                            modified: { type: 'string', format: 'date-time' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            '403': { description: 'Forbidden', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          },
+        },
+      },
+      '/api/v1/platform-admin/system/logs/recent': {
+        get: {
+          tags: ['Platform Admin'],
+          summary: 'Get recent logs',
+          description: 'Get recent logs from all log files. Requires PLATFORM_ADMIN role.',
+          operationId: 'getRecentLogs',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'lines', in: 'query', description: 'Number of log lines', required: false, schema: { type: 'integer', default: 50 } },
+            { name: 'level', in: 'query', description: 'Filter by log level', required: false, schema: { type: 'string', enum: ['error', 'warn', 'info', 'debug'] } },
+            { name: 'search', in: 'query', description: 'Search term', required: false, schema: { type: 'string' } },
+          ],
+          responses: {
+            '200': {
+              description: 'Recent logs retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          total: { type: 'integer' },
+                          logs: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                file: { type: 'string' },
+                                log: { type: 'string' },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            '403': { description: 'Forbidden', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          },
+        },
+      },
+      '/api/v1/platform-admin/system/logs/statistics': {
+        get: {
+          tags: ['Platform Admin'],
+          summary: 'Get log statistics',
+          description: 'Get statistics about log files. Requires PLATFORM_ADMIN role.',
+          operationId: 'getLogStatistics',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Log statistics retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          totalFiles: { type: 'integer' },
+                          totalSize: { type: 'integer' },
+                          files: { type: 'array', items: { type: 'object' } },
+                          levels: {
+                            type: 'object',
+                            properties: {
+                              error: { type: 'integer' },
+                              warn: { type: 'integer' },
+                              info: { type: 'integer' },
+                              debug: { type: 'integer' },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            '403': { description: 'Forbidden', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          },
+        },
+      },
+      '/api/v1/platform-admin/system/logs/files/{filename}': {
+        get: {
+          tags: ['Platform Admin'],
+          summary: 'Read specific log file',
+          description: 'Read content from a specific log file. Requires PLATFORM_ADMIN role.',
+          operationId: 'readLogFile',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'filename', in: 'path', required: true, schema: { type: 'string' } },
+            { name: 'lines', in: 'query', description: 'Number of lines', required: false, schema: { type: 'integer', default: 100 } },
+            { name: 'level', in: 'query', description: 'Filter by log level', required: false, schema: { type: 'string', enum: ['error', 'warn', 'info', 'debug'] } },
+            { name: 'search', in: 'query', description: 'Search term', required: false, schema: { type: 'string' } },
+          ],
+          responses: {
+            '200': {
+              description: 'Log file content retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          filename: { type: 'string' },
+                          totalLines: { type: 'integer' },
+                          returnedLines: { type: 'integer' },
+                          lines: { type: 'array', items: { type: 'string' } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            '404': { description: 'Log file not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            '403': { description: 'Forbidden', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          },
+        },
+      },
+      '/api/v1/platform-admin/system/logs/download': {
+        get: {
+          tags: ['Platform Admin'],
+          summary: 'Download today\'s log file',
+          description: 'Download today\'s combined log file. Returns file as download. Requires PLATFORM_ADMIN role.',
+          operationId: 'downloadTodayLog',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Log file downloaded successfully',
+              content: {
+                'text/plain': {
+                  schema: {
+                    type: 'string',
+                    format: 'binary',
+                  },
+                },
+              },
+              headers: {
+                'Content-Disposition': {
+                  schema: {
+                    type: 'string',
+                    example: 'attachment; filename="combined-2024-01-15.log"',
+                  },
+                  description: 'File download header',
+                },
+                'Content-Type': {
+                  schema: {
+                    type: 'string',
+                    example: 'text/plain',
+                  },
+                },
+                'Content-Length': {
+                  schema: {
+                    type: 'integer',
+                  },
+                },
+              },
+            },
+            '404': { description: 'Log file not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            '403': { description: 'Forbidden', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          },
+        },
+      },
+      '/api/v1/platform-admin/system/logs/download/{filename}': {
+        get: {
+          tags: ['Platform Admin'],
+          summary: 'Download specific log file',
+          description: 'Download a specific combined log file by filename. Returns file as download. Requires PLATFORM_ADMIN role.',
+          operationId: 'downloadLogFile',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'filename',
+              in: 'path',
+              description: 'Log file name (e.g., combined-2024-01-15.log)',
+              required: true,
+              schema: {
+                type: 'string',
+                example: 'combined-2024-01-15.log',
+              },
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'Log file downloaded successfully',
+              content: {
+                'text/plain': {
+                  schema: {
+                    type: 'string',
+                    format: 'binary',
+                  },
+                },
+              },
+              headers: {
+                'Content-Disposition': {
+                  schema: {
+                    type: 'string',
+                    example: 'attachment; filename="combined-2024-01-15.log"',
+                  },
+                  description: 'File download header',
+                },
+                'Content-Type': {
+                  schema: {
+                    type: 'string',
+                    example: 'text/plain',
+                  },
+                },
+                'Content-Length': {
+                  schema: {
+                    type: 'integer',
+                  },
+                },
+              },
+            },
+            '404': { description: 'Log file not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            '403': { description: 'Forbidden', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           },
         },
       },
