@@ -17,13 +17,29 @@ const PORT = process.env.PORT || 3000;
 // Use default CORS which allows all origins (needed for Vercel preview URLs)
 
 // Rate Limiting Configuration
+// More lenient in development, stricter in production
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: process.env.NODE_ENV === 'production' ? 100 : 500, // Higher limit in development
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for OPTIONS requests
+  skip: (req) => {
+    // Skip rate limiting for OPTIONS requests
+    if (req.method === 'OPTIONS') return true;
+    // Skip rate limiting in development for authenticated users
+    if (process.env.NODE_ENV === 'development' && req.headers.authorization) return false;
+    return false;
+  },
+  // Add retry-after header
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Too many requests',
+      message: 'Too many requests from this IP, please try again later.',
+      statusCode: 429,
+      retryAfter: Math.ceil(limiter.windowMs / 1000)
+    });
+  }
 });
 
 // Trust proxy (for Vercel/Railway behind reverse proxy)
